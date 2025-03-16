@@ -1,8 +1,9 @@
-// Скрипт за импортиране на държави с контури
+// Скрипт за импортиране на всички държави в света
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,189 +11,34 @@ const __dirname = dirname(__filename);
 // Зареждаме .env файла
 dotenv.config({ path: resolve(__dirname, '../.env.local') });
 
-// Директно задаваме URL и ключа за Supabase
+// Задаваме URL и ключа за Supabase
 const supabaseUrl = "https://jsairtyxfutbmgnbifsn.supabase.co";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "вашия-service-key";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Основни държави със съответните контури
-const countries = [
-  {
-    name: "България",
-    code: "BG",
-    capital: "София",
-    flag_url: "https://flagcdn.com/w1280/bg.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/bg/512.png"
-  },
-  {
-    name: "Германия",
-    code: "DE",
-    capital: "Берлин",
-    flag_url: "https://flagcdn.com/w1280/de.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/de/512.png"
-  },
-  {
-    name: "Франция",
-    code: "FR",
-    capital: "Париж",
-    flag_url: "https://flagcdn.com/w1280/fr.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/fr/512.png"
-  },
-  {
-    name: "Испания",
-    code: "ES",
-    capital: "Мадрид",
-    flag_url: "https://flagcdn.com/w1280/es.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/es/512.png"
-  },
-  {
-    name: "Италия",
-    code: "IT",
-    capital: "Рим",
-    flag_url: "https://flagcdn.com/w1280/it.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/it/512.png"
-  },
-  {
-    name: "Великобритания",
-    code: "GB",
-    capital: "Лондон",
-    flag_url: "https://flagcdn.com/w1280/gb.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/gb/512.png"
-  },
-  {
-    name: "САЩ",
-    code: "US",
-    capital: "Вашингтон",
-    flag_url: "https://flagcdn.com/w1280/us.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/north-america/us/512.png"
-  },
-  {
-    name: "Китай",
-    code: "CN",
-    capital: "Пекин",
-    flag_url: "https://flagcdn.com/w1280/cn.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/asia/cn/512.png"
-  },
-  {
-    name: "Япония",
-    code: "JP",
-    capital: "Токио",
-    flag_url: "https://flagcdn.com/w1280/jp.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/asia/jp/512.png"
-  },
-  {
-    name: "Австралия",
-    code: "AU",
-    capital: "Канбера",
-    flag_url: "https://flagcdn.com/w1280/au.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/oceania/au/512.png"
-  },
-  {
-    name: "Бразилия",
-    code: "BR",
-    capital: "Бразилия",
-    flag_url: "https://flagcdn.com/w1280/br.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/south-america/br/512.png"
-  },
-  {
-    name: "Египет",
-    code: "EG",
-    capital: "Кайро",
-    flag_url: "https://flagcdn.com/w1280/eg.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/africa/eg/512.png"
-  },
-  {
-    name: "Индия",
-    code: "IN",
-    capital: "Ню Делхи",
-    flag_url: "https://flagcdn.com/w1280/in.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/asia/in/512.png"
-  },
-  {
-    name: "Русия",
-    code: "RU",
-    capital: "Москва",
-    flag_url: "https://flagcdn.com/w1280/ru.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/ru/512.png"
-  },
-  {
-    name: "Канада",
-    code: "CA",
-    capital: "Отава",
-    flag_url: "https://flagcdn.com/w1280/ca.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/north-america/ca/512.png"
-  },
-  {
-    name: "Мексико",
-    code: "MX",
-    capital: "Мексико Сити",
-    flag_url: "https://flagcdn.com/w1280/mx.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/north-america/mx/512.png"
-  },
-  {
-    name: "Аржентина",
-    code: "AR",
-    capital: "Буенос Айрес",
-    flag_url: "https://flagcdn.com/w1280/ar.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/south-america/ar/512.png"
-  },
-  {
-    name: "Полша",
-    code: "PL",
-    capital: "Варшава",
-    flag_url: "https://flagcdn.com/w1280/pl.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/pl/512.png"
-  },
-  {
-    name: "Гърция",
-    code: "GR",
-    capital: "Атина",
-    flag_url: "https://flagcdn.com/w1280/gr.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/gr/512.png"
-  },
-  {
-    name: "Румъния",
-    code: "RO",
-    capital: "Букурещ",
-    flag_url: "https://flagcdn.com/w1280/ro.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/ro/512.png"
-  },
-  {
-    name: "Турция",
-    code: "TR",
-    capital: "Анкара",
-    flag_url: "https://flagcdn.com/w1280/tr.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/tr/512.png"
-  },
-  {
-    name: "Португалия",
-    code: "PT",
-    capital: "Лисабон",
-    flag_url: "https://flagcdn.com/w1280/pt.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/pt/512.png"
-  },
-  {
-    name: "Норвегия",
-    code: "NO",
-    capital: "Осло",
-    flag_url: "https://flagcdn.com/w1280/no.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/no/512.png"
-  },
-  {
-    name: "Швеция",
-    code: "SE",
-    capital: "Стокхолм",
-    flag_url: "https://flagcdn.com/w1280/se.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/se/512.png"
-  },
-  {
-    name: "Финландия",
-    code: "FI",
-    capital: "Хелзинки",
-    flag_url: "https://flagcdn.com/w1280/fi.png",
-    contour_url: "https://raw.githubusercontent.com/djaiss/mapsicon/master/europe/fi/512.png"
+// Основни региони за групиране
+const regions = {
+  "Africa": "africa",
+  "Americas": "americas",
+  "Asia": "asia",
+  "Europe": "europe",
+  "Oceania": "oceania"
+};
+
+// Функция за получаване на URL за контур на държава
+const getContourUrl = (code, region) => {
+  // Определяне на подрегион (напр. north-america, south-america)
+  let subregion = regions[region] || region.toLowerCase();
+  if (region === "Americas") {
+    // REST Countries API връща "Americas" като регион, но mapsicon използва north-america и south-america
+    // Тук правим опростено определяне на базата на кода
+    // Това не е идеално, но е добро начало
+    const northAmericaCodes = ['US', 'CA', 'MX', 'GT', 'BZ', 'HN', 'SV', 'NI', 'CR', 'PA', 'BS', 'CU', 'JM', 'HT', 'DO', 'PR', 'AG', 'DM', 'LC', 'VC', 'BB', 'GD', 'TT', 'KN'];
+    subregion = northAmericaCodes.includes(code) ? 'north-america' : 'south-america';
   }
-];
+  
+  return `https://raw.githubusercontent.com/djaiss/mapsicon/master/${subregion}/${code.toLowerCase()}/512.png`;
+};
 
 async function importCountries() {
   console.log('Започва импортиране на държави...');
@@ -214,18 +60,52 @@ async function importCountries() {
       console.log('Съществуващите държави са изтрити или няма такива');
     }
     
-    // Импортиране на новите данни
-    for (const country of countries) {
+    // Вземаме данните от REST Countries API
+    console.log('Извличане на данни от REST Countries API...');
+    const response = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2,capital,region,flags');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP грешка! статус: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Получени са данни за ${data.length} държави`);
+    
+    // Импортиране на данните
+    let added = 0, failed = 0;
+    for (const item of data) {
+      // Проверка и форматиране на данните
+      if (!item.name?.common || !item.cca2 || !item.region || !item.flags?.png) {
+        console.warn(`Прескачане на държава с липсваща информация: ${item.name?.common || 'Неизвестна'}`);
+        failed++;
+        continue;
+      }
+      
+      // Някои държави нямат столици
+      const capital = item.capital && item.capital.length > 0 ? item.capital[0] : "Няма столица";
+      
+      // Форматиране на данни за държава
+      const country = {
+        name: item.name.common,
+        code: item.cca2,
+        capital: capital,
+        flag_url: item.flags.png,
+        contour_url: getContourUrl(item.cca2, item.region)
+      };
+      
+      // Импортиране в базата данни
       const { error } = await supabase.from('countries').insert(country);
       
       if (error) {
         console.error(`Грешка при добавяне на ${country.name}:`, error);
+        failed++;
       } else {
-        console.log(`Добавена държава: ${country.name}`);
+        console.log(`Добавена държава: ${country.name} (${country.code})`);
+        added++;
       }
     }
     
-    console.log('Импортирането на държави е завършено!');
+    console.log(`Импортирането на държави е завършено! Добавени: ${added}, Неуспешни: ${failed}`);
   } catch (error) {
     console.error('Неочаквана грешка:', error);
   }
