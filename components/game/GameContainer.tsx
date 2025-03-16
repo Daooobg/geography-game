@@ -9,20 +9,18 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
-
-type Country = {
-  id: string;
-  name: string;
-  code: string;
-  capital: string;
-  flag_url: string;
-  contour_url: string;
-};
+import { useCountriesByLanguage, Country } from "@/lib/hooks/useMultilingualData";
+import { useTranslation } from "@/lib/hooks/useTranslation";
 
 type GameType = "contours" | "flags" | "capitals";
 
 export default function GameContainer({ userId }: { userId?: string }) {
-  const [countries, setCountries] = useState<Country[]>([]);
+  const { countries: countriesData, loading: countriesLoading, error: countriesError } = useCountriesByLanguage();
+  const { dictionary: t } = useTranslation();
+  
+  // Убеждаваме се, че countries винаги е масив
+  const countries = Array.isArray(countriesData) ? countriesData : [];
+  
   const [gameCountries, setGameCountries] = useState<Country[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentCountry, setCurrentCountry] = useState<Country | null>(null);
@@ -32,47 +30,40 @@ export default function GameContainer({ userId }: { userId?: string }) {
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [gameCompleted, setGameCompleted] = useState(false);
   
   const TOTAL_QUESTIONS = 10;
 
-  // Зареждане на държавите
+  // Select random countries for the game when data is loaded
   useEffect(() => {
-    async function fetchCountries() {
-      try {
-        const { data, error } = await supabase.from("countries").select("*");
-        if (error) throw error;
-        setCountries(data || []);
-        
-        // Избираме 10 случайни държави за играта
-        if (data && data.length >= TOTAL_QUESTIONS) {
-          const shuffled = [...data].sort(() => 0.5 - Math.random());
-          const selected = shuffled.slice(0, TOTAL_QUESTIONS);
-          setGameCountries(selected);
-        }
-        
-        setLoading(false);
-      } catch (error) {
-        console.error("Грешка при зареждане на държавите:", error);
-        setLoading(false);
+    if (!countriesLoading && countries.length > 0) {
+      // Select 10 random countries for the game
+      if (countries.length >= TOTAL_QUESTIONS) {
+        const shuffled = [...countries].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, TOTAL_QUESTIONS);
+        setGameCountries(selected);
       }
     }
-    fetchCountries();
-  }, []);
+  }, [countriesLoading, countries]);
 
-  // Подготовка на нов въпрос
+  // Prepare a new question
   const prepareQuestion = () => {
     if (countries.length < 4 || currentQuestionIndex >= TOTAL_QUESTIONS) {
       setGameCompleted(true);
       return;
     }
     
-    // Взимаме текущата държава от списъка с избрани случайни държави
+    // Get the current country from the list of selected random countries
     const country = gameCountries[currentQuestionIndex];
+    if (!country) {
+      console.error("No country found for current question index");
+      setGameCompleted(true);
+      return;
+    }
+    
     setCurrentCountry(country);
     
-    // Създаваме опции (1 правилна + 3 грешни)
+    // Create options (1 correct + 3 incorrect)
     let possibleOptions = countries
       .filter(c => c.id !== country.id)
       .map(c => {
@@ -80,14 +71,14 @@ export default function GameContainer({ userId }: { userId?: string }) {
         return c.name;
       });
     
-    // Разбъркваме и взимаме 3
+    // Shuffle and take 3
     possibleOptions = possibleOptions.sort(() => 0.5 - Math.random()).slice(0, 3);
     
-    // Добавяме правилния отговор
+    // Add the correct answer
     const correctAnswer = gameType === "capitals" ? country.capital : country.name;
     possibleOptions.push(correctAnswer);
     
-    // Разбъркваме отново
+    // Shuffle again
     possibleOptions = possibleOptions.sort(() => 0.5 - Math.random());
     
     setOptions(possibleOptions);
@@ -95,30 +86,34 @@ export default function GameContainer({ userId }: { userId?: string }) {
     setShowResult(false);
   };
 
-  // Инициализация
+  // Initialization
   useEffect(() => {
-    if (!loading && gameCountries.length > 0) {
+    if (!countriesLoading && gameCountries.length > 0) {
       prepareQuestion();
     }
-  }, [loading, gameCountries, currentQuestionIndex]);
+  }, [countriesLoading, gameCountries, currentQuestionIndex]);
   
-  // При промяна на тип игра, рестартираме играта
+  // When game type changes, restart the game
   useEffect(() => {
-    if (!loading && countries.length > 0) {
-      // Избираме нови случайни държави
-      const shuffled = [...countries].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, TOTAL_QUESTIONS);
-      setGameCountries(selected);
-      
-      // Рестартираме играта
-      setCurrentQuestionIndex(0);
-      setScore(0);
-      setGameCompleted(false);
-      setShowResult(false);
+    if (!countriesLoading && countries.length > 0) {
+      try {
+        // Select new random countries
+        const shuffled = [...countries].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, TOTAL_QUESTIONS);
+        setGameCountries(selected);
+        
+        // Restart the game
+        setCurrentQuestionIndex(0);
+        setScore(0);
+        setGameCompleted(false);
+        setShowResult(false);
+      } catch (error) {
+        console.error("Error setting up game:", error);
+      }
     }
-  }, [gameType, loading, countries]);
+  }, [gameType, countriesLoading, countries]);
 
-  // Проверка на отговора
+  // Check the answer
   const checkAnswer = async () => {
     if (!currentCountry || !selectedOption) return;
     
@@ -132,7 +127,7 @@ export default function GameContainer({ userId }: { userId?: string }) {
       const newScore = score + 1;
       setScore(newScore);
       
-      // Записваме резултата в базата данни, ако потребителят е логнат
+      // Save the score to the database if the user is logged in
       if (userId) {
         try {
           await supabase.from("scores").insert({
@@ -141,13 +136,13 @@ export default function GameContainer({ userId }: { userId?: string }) {
             game_type: gameType
           });
         } catch (error) {
-          console.error("Грешка при записване на резултата:", error);
+          console.error("Error saving score:", error);
         }
       }
     }
   };
 
-  // Следващ въпрос
+  // Next question
   const nextQuestion = () => {
     if (currentQuestionIndex < TOTAL_QUESTIONS - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
@@ -156,23 +151,31 @@ export default function GameContainer({ userId }: { userId?: string }) {
     }
   };
   
-  // Рестартиране на играта
+  // Restart the game
   const restartGame = () => {
-    // Избираме 10 нови случайни държави
-    if (countries.length >= TOTAL_QUESTIONS) {
-      const shuffled = [...countries].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, TOTAL_QUESTIONS);
-      setGameCountries(selected);
+    try {
+      // Select 10 new random countries
+      if (countries.length >= TOTAL_QUESTIONS) {
+        const shuffled = [...countries].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, TOTAL_QUESTIONS);
+        setGameCountries(selected);
+      }
+      
+      setCurrentQuestionIndex(0);
+      setScore(0);
+      setGameCompleted(false);
+      setShowResult(false);
+    } catch (error) {
+      console.error("Error restarting game:", error);
     }
-    
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setGameCompleted(false);
-    setShowResult(false);
   };
 
-  if (loading) {
-    return <div className="text-center py-10">Зареждане...</div>;
+  if (countriesLoading) {
+    return <div className="text-center py-10">{t.common.loading}</div>;
+  }
+
+  if (countriesError || countries.length === 0) {
+    return <div className="text-center py-10 text-red-500">{t.common.error}</div>;
   }
 
   return (
@@ -187,16 +190,16 @@ export default function GameContainer({ userId }: { userId?: string }) {
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">
-          {gameType === "contours" && "Познай държавата"}
-          {gameType === "flags" && "Познай знамето"}
-          {gameType === "capitals" && "Познай столицата"}
+          {gameType === "contours" && "Коя е държавата?"}
+          {gameType === "flags" && "На коя държава е знамето?"}
+          {gameType === "capitals" && currentCountry?.name && `Коя е столицата на ${currentCountry.name}?`}
         </h2>
-        <div className="text-xl">Точки: {score}/{TOTAL_QUESTIONS}</div>
+        <div className="text-xl">{t.game.score}: {score}/{TOTAL_QUESTIONS}</div>
       </div>
       
       <div className="mb-4">
         <div className="flex justify-between text-sm mb-1">
-          <span>Въпрос {currentQuestionIndex + 1} от {TOTAL_QUESTIONS}</span>
+          <span>Question {currentQuestionIndex + 1} of {TOTAL_QUESTIONS}</span>
           <span>{Math.round(((currentQuestionIndex) / TOTAL_QUESTIONS) * 100)}%</span>
         </div>
         <Progress value={((currentQuestionIndex) / TOTAL_QUESTIONS) * 100} className="h-2" />
@@ -205,89 +208,85 @@ export default function GameContainer({ userId }: { userId?: string }) {
       {gameCompleted ? (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Играта приключи!</CardTitle>
+            <CardTitle>{t.game.results.title}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
             <div className="text-xl mb-4">
-              Вашият резултат: {score} от {TOTAL_QUESTIONS} точки
+              {t.game.results.score}: {score}/{TOTAL_QUESTIONS}
             </div>
             <div className="mb-6">
               {score === TOTAL_QUESTIONS 
-                ? "Отлично! Перфектен резултат!" 
+                ? "Отлично!"
                 : score >= TOTAL_QUESTIONS / 2 
-                  ? "Добра работа!" 
-                  : "Опитайте отново, за да подобрите резултата си!"}
+                  ? "Добра работа!"
+                  : "Опитай отново!"}
             </div>
-            <Button onClick={restartGame}>Играй отново</Button>
+            <Button onClick={restartGame}>{t.game.results.playAgain}</Button>
           </CardContent>
         </Card>
       ) : currentCountry && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>
-              {gameType === "contours" && "Коя държава е това?"}
-              {gameType === "flags" && "На коя държава е това знаме?"}
+              {gameType === "contours" && "Коя е държавата?"}
+              {gameType === "flags" && "На коя държава е знамето?"}
               {gameType === "capitals" && `Коя е столицата на ${currentCountry.name}?`}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
-            {gameType === "contours" && (
+            {gameType === "contours" && currentCountry.contour_url && (
               <div className="mb-6 h-64 w-64 relative">
                 <Image 
                   src={currentCountry.contour_url} 
-                  alt="Контур на държава" 
+                  alt="Country contour" 
                   fill 
+                  priority
+                  sizes="(max-width: 768px) 100vw, 256px"
                   className="object-contain"
                 />
               </div>
             )}
             
-            {gameType === "flags" && (
+            {gameType === "flags" && currentCountry.flag_url && (
               <div className="mb-6 h-48 w-80 relative">
                 <Image 
                   src={currentCountry.flag_url} 
-                  alt="Знаме" 
+                  alt="Flag" 
                   fill 
+                  priority
+                  sizes="(max-width: 768px) 100vw, 320px"
                   className="object-contain"
                 />
               </div>
             )}
             
-            {gameType === "capitals" && (
-              <div className="mb-6 text-center text-xl">
-                <p>Столицата на {currentCountry.name}?</p>
-              </div>
-            )}
-
-            <RadioGroup 
-              value={selectedOption} 
-              onValueChange={setSelectedOption}
-              className="w-full space-y-2"
-              disabled={showResult}
-            >
+            <RadioGroup className="w-full mb-6" value={selectedOption} onValueChange={setSelectedOption}>
               {options.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2">
+                <div key={index} className="flex items-center space-x-2 mb-2">
                   <RadioGroupItem value={option} id={`option-${index}`} />
-                  <Label htmlFor={`option-${index}`} className="flex-1">{option}</Label>
+                  <Label htmlFor={`option-${index}`} className="cursor-pointer w-full py-2">
+                    {option}
+                  </Label>
                 </div>
               ))}
             </RadioGroup>
-
-            {showResult && (
-              <div className={`mt-4 p-3 rounded-md ${isCorrect ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                {isCorrect 
-                  ? "Правилно!" 
-                  : `Грешно! Правилният отговор е: ${gameType === "capitals" ? currentCountry.capital : currentCountry.name}`}
+            
+            {!showResult ? (
+              <Button onClick={checkAnswer} disabled={!selectedOption} className="w-full">
+                Провери
+              </Button>
+            ) : (
+              <div className="w-full space-y-4">
+                <div className={`text-center p-3 rounded-md ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {isCorrect 
+                    ? t.game.correct
+                    : `${t.game.wrong} ${gameType === "capitals" ? currentCountry.capital : currentCountry.name}`}
+                </div>
+                <Button onClick={nextQuestion} className="w-full">
+                  Следващ въпрос
+                </Button>
               </div>
             )}
-
-            <div className="mt-6 flex gap-4">
-              {!showResult ? (
-                <Button onClick={checkAnswer} disabled={!selectedOption}>Проверете</Button>
-              ) : (
-                <Button onClick={nextQuestion}>Следващ въпрос</Button>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}
